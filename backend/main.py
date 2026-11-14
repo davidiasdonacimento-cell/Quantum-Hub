@@ -142,14 +142,6 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False,
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
-    email = os.getenv("ADMIN_EMAIL")
-    password = os.getenv("ADMIN_PASSWORD")
-    if email and password:
-        with SessionLocal() as db:
-            existing = db.query(User).filter(func.lower(User.email) == email.lower()).first()
-            if not existing:
-                db.add(User(name="Administrador", email=email.lower(), password_hash=hash_password(password), role="admin"))
-                db.commit()
 
 @app.get("/api/health")
 def health():
@@ -160,7 +152,8 @@ def health():
 def register(payload: RegisterIn, db: Session = Depends(db_dep)):
     email = payload.email.lower()
     if db.query(User).filter(func.lower(User.email) == email).first(): raise HTTPException(409, "Este e-mail já está cadastrado.")
-    role = "admin" if db.query(User).count() == 0 else "member"
+    admin_email = os.getenv("ADMIN_EMAIL", "").strip().lower()
+    role = "admin" if admin_email and email == admin_email else "member"
     user = User(name=payload.name.strip(), email=email, password_hash=hash_password(payload.password), role=role)
     db.add(user); db.commit(); db.refresh(user)
     return {"token": token_for(user), "user": serialize(user)}
